@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: "postgresql://postgres.ekdoxzpypavhtoklntqv:__Prwwt1292@aws-0-ca-central-1.pooler.supabase.com:6543/postgres",
 });
 
 export default async function handler(req, res) {
