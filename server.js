@@ -1,29 +1,25 @@
-const express = require("express");
-const bcrypt = require("bcryptjs");
-const { createClient } = require('@supabase/supabase-js');
-const pool = require("../client/config/db"); // PostgreSQL connection
 require("dotenv").config();
+const express = require("express");
 const cors = require("cors");
+const bcrypt = require("bcryptjs");
+const { createClient } = require("@supabase/supabase-js");
 const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 
 // Initialize Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL; // Supabase URL
+const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 app.use(
     cors({
-        origin: "https://file-sharing-website-vuzt.vercel.app/", // Frontend origin
-        methods: ["GET", "POST", "DELETE"], // Allowed HTTP methods
+        origin: "https://file-sharing-website-vuzt.vercel.app/",
+        methods: ["GET", "POST", "DELETE"],
         allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
 
-// Middleware to parse JSON requests
 app.use(express.json());
 
 // Test GET request
@@ -31,9 +27,6 @@ app.get("/", (req, res) => {
     res.send("Server is up and running!");
 });
 
-///------------------- User Authentication -------------------///
-
-// Login endpoint
 app.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
@@ -54,7 +47,7 @@ app.post("/login", async (req, res) => {
 
         res.status(200).json({
             message: "Login successful",
-            token: "yes", // Replace with actual JWT token if used
+            token: "yes",
         });
     } catch (error) {
         console.error("Error during login:", error);
@@ -62,7 +55,6 @@ app.post("/login", async (req, res) => {
     }
 });
 
-// Registration endpoint
 app.post("/register", async (req, res) => {
     const { name, email, password } = req.body;
 
@@ -99,23 +91,19 @@ app.post("/register", async (req, res) => {
     }
 });
 
-///------------------- File Management -------------------///
-
-// Configure Multer storage
-const storage = multer.memoryStorage(); // Store file in memory instead of on disk
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Upload file and save metadata to PostgreSQL and Supabase
 app.post("/upload", upload.single("file"), async (req, res) => {
     const { file } = req;
+
     if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
     }
 
     try {
-        // Upload the file to Supabase storage
         const { data, error } = await supabase.storage
-            .from("uploads") // Specify your storage bucket name
+            .from("uploads")
             .upload(`public/${Date.now()}_${file.originalname}`, file.buffer, {
                 contentType: file.mimetype,
             });
@@ -124,7 +112,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
             return res.status(500).json({ message: "Error uploading to Supabase", error });
         }
 
-        // Save file metadata in the PostgreSQL database
         const result = await pool.query(
             "INSERT INTO files (filename, file_path, mime_type, size) VALUES ($1, $2, $3, $4) RETURNING *",
             [file.originalname, data.Key, file.mimetype, file.size]
@@ -140,7 +127,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     }
 });
 
-// Get list of uploaded files (metadata)
 app.get("/files", async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM files");
@@ -151,14 +137,12 @@ app.get("/files", async (req, res) => {
     }
 });
 
-// Download file from Supabase storage
 app.get("/files/:filename", async (req, res) => {
     const { filename } = req.params;
 
     try {
-        // Fetch the file from Supabase storage
         const { data, error } = await supabase.storage
-            .from("uploads") // Use the same bucket name
+            .from("uploads")
             .download(`public/${filename}`);
 
         if (error) {
@@ -173,21 +157,18 @@ app.get("/files/:filename", async (req, res) => {
     }
 });
 
-// Delete file from Supabase storage and PostgreSQL
 app.delete("/files/:filename", async (req, res) => {
     const { filename } = req.params;
 
     try {
-        // Delete the file from Supabase storage
         const { error } = await supabase.storage
-            .from("uploads") // Use the same bucket name
+            .from("uploads")
             .remove([`public/${filename}`]);
 
         if (error) {
             return res.status(500).json({ message: "Error deleting file from Supabase", error });
         }
 
-        // Remove metadata from PostgreSQL
         await pool.query("DELETE FROM files WHERE filename = $1", [filename]);
 
         res.status(200).json({ message: `File '${filename}' deleted successfully` });
@@ -197,7 +178,6 @@ app.delete("/files/:filename", async (req, res) => {
     }
 });
 
-///------------------- Start the Server -------------------///
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
